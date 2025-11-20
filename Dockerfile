@@ -16,25 +16,27 @@ RUN docker-php-ext-install pdo_mysql mbstring exif pcntl bcmath gd
 # Enable Apache rewrite
 RUN a2enmod rewrite
 
-# Change Apache root to Laravel /public folder
+# Set Apache root to /public
 ENV APACHE_DOCUMENT_ROOT /var/www/html/public
 
 RUN sed -ri -e 's!/var/www/html!${APACHE_DOCUMENT_ROOT}!g' /etc/apache2/sites-available/*.conf
 RUN sed -ri -e 's!/var/www/!${APACHE_DOCUMENT_ROOT}!g' /etc/apache2/apache2.conf /etc/apache2/conf-available/*.conf
 
-# Set working directory
-WORKDIR /var/www/html/public
+# CRITICAL: Allow .htaccess + index.php
+RUN echo '<Directory /var/www/html/public>\n\
+    AllowOverride All\n\
+    Require all granted\n\
+    DirectoryIndex index.php index.html\n\
+</Directory>' >> /etc/apache2/apache2.conf
 
-# Copy project
+WORKDIR /var/www/html
+
 COPY . .
 
-# Permissions
 RUN chown -R www-data:www-data /var/www/html
 RUN chmod -R 775 storage bootstrap/cache
 
-# Install Composer
 COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
 RUN composer install --no-dev --optimize-autoloader
 
-# Run migrations + start Apache
 CMD php artisan migrate --force && apache2-foreground
