@@ -10,16 +10,16 @@ RUN apt-get update && apt-get install -y \
     git \
     curl
 
-# Install PHP extensions
+# Install PHP extensions needed by Laravel and MySQL
 RUN docker-php-ext-install pdo_mysql mbstring exif pcntl bcmath gd
 
-# Enable Apache mod_rewrite for Laravel pretty URLs
+# Enable Apache mod_rewrite for pretty URLs
 RUN a2enmod rewrite
 
 # Set working directory
 WORKDIR /var/www/html
 
-# Copy project files
+# Copy project files into container
 COPY . .
 
 # Set correct permissions
@@ -32,5 +32,5 @@ COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
 # Install PHP dependencies
 RUN composer install --no-dev --optimize-autoloader
 
-# Default command: run migrations then start Apache
+# Start command: run migrations then start Apache
 CMD php artisan migrate --force && apache2-foreground
