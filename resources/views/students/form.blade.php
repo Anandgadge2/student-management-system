@@ -10,6 +10,11 @@
 
 @props(['student' => null, 'departments', 'countries'])
 
+{{-- CSRF for Axios / jQuery --}}
+@push('head')
+<meta name="csrf-token" content="{{ csrf_token() }}">
+@endpush
+
 <form method="POST" enctype="multipart/form-data"
       action="{{ $student ? route('students.update', $student) : route('students.store') }}">
     @csrf
@@ -79,7 +84,7 @@
     <div class="col-md-4 mb-3">
         <label>Department</label>
         <select name="department_id" id="department_id" class="form-select" required>
-            <option value="">-- Select Department--</option>
+            <option value="">-- Select Department --</option>
 
             @foreach($departments as $d)
                 <option value="{{ $d->id }}"
@@ -92,8 +97,9 @@
 
     <div class="col-md-4 mb-3">
         <label>Courses</label>
-        <select name="courses[]" id="courses" class="form-select">
-        <option value="">-- Select Courses--</option></select>
+        <select name="courses[]" id="courses" class="form-select" disabled>
+            <option value="">-- Select Courses --</option>
+        </select>
     </div>
 
     {{-- Location fields --}}
@@ -102,7 +108,8 @@
         <select name="country_id" id="country_id" class="form-select">
             <option value="">-- Select Country --</option>
             @foreach($countries as $c)
-                <option value="{{ $c->id }}" @selected(old('country_id', $student->country_id ?? '') == $c->id)>{{ $c->name }}</option>
+                <option value="{{ $c->id }}"
+                        @selected(old('country_id', $student->country_id ?? '') == $c->id)>{{ $c->name }}</option>
             @endforeach
         </select>
     </div>
@@ -127,7 +134,9 @@
 <a href="{{ route('students.index') }}" class="btn btn-secondary">Cancel</a>
 
 </form>
+
 @push('scripts')
+
 <!-- Axios -->
 <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
 
@@ -137,100 +146,109 @@
 <script>
 $(document).ready(function () {
 
-    /** ------------------------------------------------------
-     * Utility: Generate dynamic named route URLs in Blade 
-     * ------------------------------------------------------*/
-    function route(name, id) {
-        let routes = {
-            'departments.courses': "{{ route('departments.courses', ':id') }}",
-            'countries.states': "{{ route('countries.states', ':id') }}",
-            'states.cities': "{{ route('states.cities', ':id') }}"
-        };
+    /* ---------------------------
+       CSRF for AJAX
+    -----------------------------*/
+    $.ajaxSetup({
+        headers: {
+            'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content')
+        }
+    });
 
-        return routes[name].replace(':id', id);
+    /* ---------------------------
+       Helpers
+    -----------------------------*/
+    const routes = {
+        deptCourses: (id) => "{{ url('departments') }}/" + id + "/courses",
+        countryStates: (id) => "{{ url('countries') }}/" + id + "/states",
+        stateCities: (id) => "{{ url('states') }}/" + id + "/cities",
+    };
+
+    function clearAndDisable(selector, placeholder) {
+        $(selector)
+            .html(`<option value="">${placeholder}</option>`)
+            .prop("disabled", true);
     }
 
-    /** ------------------------------------------------------
-     * Load Courses - Department → Courses
-     * ------------------------------------------------------*/
+    /* ---------------------------
+       Load Courses
+    -----------------------------*/
     function loadCourses(deptId, selected = []) {
         if (!deptId) {
-            $("#courses").html(`<option value="">-- Select Courses --</option>`).prop("disabled", true);
+            clearAndDisable("#courses", "-- Select Courses --");
             return;
         }
 
-        axios.get(route('departments.courses', deptId))
+        axios.get(routes.deptCourses(deptId))
             .then(function (response) {
                 $("#courses").html(`<option value="">-- Select Courses --</option>`);
 
-                $.each(response.data, function (i, course) {
-                    let isSelected = selected.includes(String(course.id)) ? 'selected' : '';
+                response.data.forEach(course => {
+                    const isSelected = selected.map(String).includes(String(course.id)) ? 'selected' : '';
                     $("#courses").append(`<option value="${course.id}" ${isSelected}>${course.name}</option>`);
                 });
 
                 $("#courses").prop("disabled", false);
             })
             .catch(function (error) {
-                console.error("Error loading courses:", error);
+                console.error("Error loading courses:", error.response?.status, error.response?.data);
             });
     }
 
-    /** ------------------------------------------------------
-     * Load States - Country → States
-     * ------------------------------------------------------*/
+    /* ---------------------------
+       Load States
+    -----------------------------*/
     function loadStates(countryId, selected = []) {
         if (!countryId) {
-            $("#state_id").html(`<option value="">-- Select State --</option>`).prop("disabled", true);
-            loadCities(null, []);
+            clearAndDisable("#state_id", "-- Select State --");
+            clearAndDisable("#city_id", "-- Select City --");
             return;
         }
 
-        axios.get(route('countries.states', countryId))
+        axios.get(routes.countryStates(countryId))
             .then(function (response) {
                 $("#state_id").html(`<option value="">-- Select State --</option>`);
 
-                $.each(response.data, function (i, state) {
-                    let isSelected = selected.includes(String(state.id)) ? 'selected' : '';
+                response.data.forEach(state => {
+                    const isSelected = selected.map(String).includes(String(state.id)) ? 'selected' : '';
                     $("#state_id").append(`<option value="${state.id}" ${isSelected}>${state.name}</option>`);
                 });
 
                 $("#state_id").prop("disabled", false);
             })
             .catch(function (error) {
-                console.error("Error loading states:", error);
+                console.error("Error loading states:", error.response?.status, error.response?.data);
             });
     }
 
-
-    /** ------------------------------------------------------
-     * Load Cities - State → Cities
-     * ------------------------------------------------------*/
+    /* ---------------------------
+       Load Cities
+    -----------------------------*/
     function loadCities(stateId, selected = []) {
         if (!stateId) {
-            $("#city_id").html(`<option value="">-- Select City --</option>`).prop("disabled", true);
+            clearAndDisable("#city_id", "-- Select City --");
             return;
         }
 
-        axios.get(route('states.cities', stateId))
+        axios.get(routes.stateCities(stateId))
             .then(function (response) {
                 $("#city_id").html(`<option value="">-- Select City --</option>`);
 
-                $.each(response.data, function (i, city) {
-                    let isSelected = selected.includes(String(city.id)) ? 'selected' : '';
+                response.data.forEach(city => {
+                    const isSelected = selected.map(String).includes(String(city.id)) ? 'selected' : '';
                     $("#city_id").append(`<option value="${city.id}" ${isSelected}>${city.name}</option>`);
                 });
 
                 $("#city_id").prop("disabled", false);
             })
             .catch(function (error) {
-                console.error("Error loading cities:", error);
+                console.error("Error loading cities:", error.response?.status, error.response?.data);
             });
     }
 
-
-    /** ------------------------------------------------------
-     * Event Listeners
-     * ------------------------------------------------------*/
+    /* ---------------------------
+       Event Listeners
+    -----------------------------*/
     $("#department_id").on("change", function () {
         loadCourses($(this).val(), []);
     });
@@ -243,30 +261,31 @@ $(document).ready(function () {
         loadCities($(this).val(), []);
     });
 
-
-    /** ------------------------------------------------------
-     * EDIT MODE: Preload existing values
-     * ------------------------------------------------------*/
+    /* ---------------------------
+       EDIT MODE preload
+    -----------------------------*/
     @if(isset($student))
-        // Load courses
-        let selectedCourses = @json($student->courses->pluck('id'));
-        loadCourses($("#department_id").val(), selectedCourses);
 
-        // Preload location
+        let selectedCourses = @json($student->courses->pluck('id'));
+
         let preCountry = "{{ old('country_id', $student->country_id ?? '') }}";
         let preState   = "{{ old('state_id', $student->state_id ?? '') }}";
         let preCity    = "{{ old('city_id', $student->city_id ?? '') }}";
 
+        if ($("#department_id").val()) {
+            loadCourses($("#department_id").val(), selectedCourses);
+        }
+
         if (preCountry) {
             loadStates(preCountry, [preState]);
 
-            // Load cities AFTER states load
             setTimeout(() => {
                 if (preState) {
                     loadCities(preState, [preCity]);
                 }
-            }, 300);
+            }, 500);
         }
+
     @endif
 
 });
