@@ -10,10 +10,7 @@
 
 @props(['student' => null, 'departments', 'countries'])
 
-{{-- CSRF for Axios / jQuery --}}
-@push('head')
 <meta name="csrf-token" content="{{ csrf_token() }}">
-@endpush
 
 <form method="POST" enctype="multipart/form-data"
       action="{{ $student ? route('students.update', $student) : route('students.store') }}">
@@ -50,13 +47,15 @@
 
     <div class="col-md-3 mb-3">
         <label>Age</label>
-        <input type="number" name="age" value="{{ old('age', $student->age ?? '') }}"
+        <input type="number" name="age"
+               value="{{ old('age', $student->age ?? '') }}"
                class="form-control">
     </div>
 
     <div class="col-md-3 mb-3">
         <label>DOB</label>
-        <input type="date" name="dob" value="{{ old('dob', $student->dob ?? '') }}"
+        <input type="date" name="dob"
+               value="{{ old('dob', $student->dob ?? '') }}"
                class="form-control">
     </div>
 
@@ -102,14 +101,16 @@
         </select>
     </div>
 
-    {{-- Location fields --}}
+    {{-- Location --}}
     <div class="col-md-4 mb-3">
         <label>Country</label>
         <select name="country_id" id="country_id" class="form-select">
             <option value="">-- Select Country --</option>
             @foreach($countries as $c)
                 <option value="{{ $c->id }}"
-                        @selected(old('country_id', $student->country_id ?? '') == $c->id)>{{ $c->name }}</option>
+                    @selected(old('country_id', $student->country_id ?? '') == $c->id)>
+                    {{ $c->name }}
+                </option>
             @endforeach
         </select>
     </div>
@@ -131,141 +132,114 @@
 </div>
 
 <button class="btn btn-success">{{ $student ? 'Update' : 'Create' }}</button>
+
+{{-- ✅ FIXED CANCEL BUTTON --}}
 <a href="{{ route('students.index') }}" class="btn btn-secondary">Cancel</a>
 
 </form>
 
-@push('scripts')
-
-<!-- Axios -->
 <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
-
-<!-- jQuery -->
 <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
 
 <script>
 $(document).ready(function () {
 
-    /* ---------------------------
-       CSRF for AJAX
-    -----------------------------*/
+    // CSRF Setup
     $.ajaxSetup({
         headers: {
             'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content')
         }
     });
 
-    /* ---------------------------
-       Helpers
-    -----------------------------*/
     const routes = {
         deptCourses: (id) => "{{ url('departments') }}/" + id + "/courses",
         countryStates: (id) => "{{ url('countries') }}/" + id + "/states",
         stateCities: (id) => "{{ url('states') }}/" + id + "/cities",
     };
 
-    function clearAndDisable(selector, placeholder) {
-        $(selector)
-            .html(`<option value="">${placeholder}</option>`)
-            .prop("disabled", true);
+    function resetDropdown(selector, text) {
+        $(selector).html(`<option value="">${text}</option>`).prop("disabled", true);
     }
 
-    /* ---------------------------
-       Load Courses
-    -----------------------------*/
+    /* ===================== LOAD COURSES ===================== */
     function loadCourses(deptId, selected = []) {
         if (!deptId) {
-            clearAndDisable("#courses", "-- Select Courses --");
+            resetDropdown("#courses", "-- Select Courses --");
             return;
         }
 
         axios.get(routes.deptCourses(deptId))
-            .then(function (response) {
+            .then(res => {
                 $("#courses").html(`<option value="">-- Select Courses --</option>`);
 
-                response.data.forEach(course => {
+                res.data.forEach(course => {
                     const isSelected = selected.map(String).includes(String(course.id)) ? 'selected' : '';
                     $("#courses").append(`<option value="${course.id}" ${isSelected}>${course.name}</option>`);
                 });
 
                 $("#courses").prop("disabled", false);
             })
-            .catch(function (error) {
-                console.error("Error loading courses:", error.response?.status, error.response?.data);
-            });
+            .catch(err => console.error(err));
     }
 
-    /* ---------------------------
-       Load States
-    -----------------------------*/
+    /* ===================== LOAD STATES ===================== */
     function loadStates(countryId, selected = []) {
         if (!countryId) {
-            clearAndDisable("#state_id", "-- Select State --");
-            clearAndDisable("#city_id", "-- Select City --");
+            resetDropdown("#state_id", "-- Select State --");
+            resetDropdown("#city_id", "-- Select City --");
             return;
         }
 
         axios.get(routes.countryStates(countryId))
-            .then(function (response) {
+            .then(res => {
                 $("#state_id").html(`<option value="">-- Select State --</option>`);
 
-                response.data.forEach(state => {
+                res.data.forEach(state => {
                     const isSelected = selected.map(String).includes(String(state.id)) ? 'selected' : '';
                     $("#state_id").append(`<option value="${state.id}" ${isSelected}>${state.name}</option>`);
                 });
 
                 $("#state_id").prop("disabled", false);
             })
-            .catch(function (error) {
-                console.error("Error loading states:", error.response?.status, error.response?.data);
-            });
+            .catch(err => console.error(err));
     }
 
-    /* ---------------------------
-       Load Cities
-    -----------------------------*/
+    /* ===================== LOAD CITIES ===================== */
     function loadCities(stateId, selected = []) {
         if (!stateId) {
-            clearAndDisable("#city_id", "-- Select City --");
+            resetDropdown("#city_id", "-- Select City --");
             return;
         }
 
         axios.get(routes.stateCities(stateId))
-            .then(function (response) {
+            .then(res => {
                 $("#city_id").html(`<option value="">-- Select City --</option>`);
 
-                response.data.forEach(city => {
+                res.data.forEach(city => {
                     const isSelected = selected.map(String).includes(String(city.id)) ? 'selected' : '';
                     $("#city_id").append(`<option value="${city.id}" ${isSelected}>${city.name}</option>`);
                 });
 
                 $("#city_id").prop("disabled", false);
             })
-            .catch(function (error) {
-                console.error("Error loading cities:", error.response?.status, error.response?.data);
-            });
+            .catch(err => console.error(err));
     }
 
-    /* ---------------------------
-       Event Listeners
-    -----------------------------*/
-    $("#department_id").on("change", function () {
+    /* ===================== EVENTS ===================== */
+    $("#department_id").change(function () {
         loadCourses($(this).val(), []);
     });
 
-    $("#country_id").on("change", function () {
+    $("#country_id").change(function () {
         loadStates($(this).val(), []);
     });
 
-    $("#state_id").on("change", function () {
+    $("#state_id").change(function () {
         loadCities($(this).val(), []);
     });
 
-    /* ---------------------------
-       EDIT MODE preload
-    -----------------------------*/
+    /* ===================== EDIT MODE ===================== */
     @if(isset($student))
-
         let selectedCourses = @json($student->courses->pluck('id'));
 
         let preCountry = "{{ old('country_id', $student->country_id ?? '') }}";
@@ -279,15 +253,13 @@ $(document).ready(function () {
         if (preCountry) {
             loadStates(preCountry, [preState]);
 
-            setTimeout(() => {
+            setTimeout(function () {
                 if (preState) {
                     loadCities(preState, [preCity]);
                 }
             }, 500);
         }
-
     @endif
 
 });
 </script>
-@endpush
